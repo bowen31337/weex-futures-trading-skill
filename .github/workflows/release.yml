@@ -1,0 +1,115 @@
+name: Release Skill
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Package skill
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SKILL_NAME="weex-trading"
+
+          # Create dist directory
+          mkdir -p dist
+
+          # Create the .skill package (zip with .skill extension)
+          zip -r "dist/${SKILL_NAME}-${VERSION}.skill" \
+            SKILL.md \
+            scripts/ \
+            references/ \
+            -x "*.git*" \
+            -x "__pycache__/*" \
+            -x "*.pyc"
+
+          # Also create a tar.gz for convenience
+          tar -czvf "dist/${SKILL_NAME}-${VERSION}.tar.gz" \
+            --exclude='.git*' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='dist' \
+            SKILL.md scripts/ references/
+
+          echo "Created packages:"
+          ls -la dist/
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          cat << 'EOF' > release_notes.md
+          ## WEEX Futures Trading Skill
+
+          Trade USDT-margined perpetual futures on WEEX exchange with up to 125x leverage.
+
+          ### Features
+          - Market data (ticker, order book, funding rates)
+          - Account management (assets, positions, leverage)
+          - Order operations (place, cancel, close positions)
+          - Python CLI client for easy integration
+
+          ### Installation
+
+          Download the `.skill` file and add it to your Claude Code skills directory:
+          ```bash
+          # macOS/Linux
+          mv weex-trading-*.skill ~/.claude/skills/
+
+          # Or extract to use the Python client directly
+          unzip weex-trading-*.skill -d weex-trading
+          ```
+
+          ### Environment Variables
+          ```bash
+          export WEEX_API_KEY=your_api_key
+          export WEEX_API_SECRET=your_api_secret
+          export WEEX_PASSPHRASE=your_passphrase
+          ```
+
+          ### Quick Start
+          ```bash
+          # Using Python client
+          python scripts/weex_client.py ticker cmt_btcusdt
+          python scripts/weex_client.py assets
+          python scripts/weex_client.py buy cmt_btcusdt 10
+          ```
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "WEEX Trading Skill ${{ steps.version.outputs.version }}"
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.skill
+            dist/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
