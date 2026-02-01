@@ -43,6 +43,8 @@ jobs:
           # Create the .skill package (zip with .skill extension)
           zip -r "dist/${SKILL_NAME}-${VERSION}.skill" \
             SKILL.md \
+            README.md \
+            LICENSE \
             scripts/ \
             references/ \
             -x "*.git*" \
@@ -55,7 +57,7 @@ jobs:
             --exclude='__pycache__' \
             --exclude='*.pyc' \
             --exclude='dist' \
-            SKILL.md scripts/ references/
+            SKILL.md README.md LICENSE scripts/ references/
 
           echo "Created packages:"
           ls -la dist/
